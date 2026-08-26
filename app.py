@@ -1,73 +1,73 @@
-import time
 import requests
 import streamlit as st
+from google import genai
 
-# Cấu hình trang web Streamlit
-st.set_page_config(page_title="AI Music Maker", page_icon="🎵", layout="centered")
+st.set_page_config(page_title="AI Music Studio", page_icon="🎵", layout="centered")
 
-st.title("🎵 AI Music Maker (Xuất MP3 thật)")
-st.write("Tạo bài hát hoàn chỉnh (Lời + Nhạc nền + Ca sĩ hát) và tải file MP3 về máy.")
+st.title("🎵 AI Music Studio")
+st.write("Tự động sáng tác lời, tạo prompt Suno và phát bài hát MP3 ngay trên Web.")
 
-# 1. Ô nhập Lời bài hát
-lyrics_input = st.text_area(
-    "1. Lời bài hát (Lyrics)",
-    height=180,
-    placeholder="[Verse 1]\nĐêm nay mưa rơi rơi ngoài hiên\n[Chorus]\nLời ca cất lên nhẹ nhàng...",
+# 1. Nhập API Key
+api_key_secret = st.secrets.get("GEMINI_API_KEY", "")
+api_key_input = st.text_input(
+    "Nhập Gemini API Key:", 
+    type="password", 
+    value=api_key_secret
 )
+api_key = api_key_secret if api_key_secret else api_key_input
 
-# 2. Ô nhập Phong cách nhạc
-tags_input = st.text_input(
-    "2. Phong cách nhạc (Style/Genre)",
-    value="V-Pop, Acoustic Guitar, Male Vocal, Melodic",
-    placeholder="Ví dụ: V-Pop, R&B, Male Voice, Catchy",
-)
+# 2. Nhập Ý tưởng
+lyrics_input = st.text_area("1. Nhập Ý tưởng / Lời bài hát:", height=150)
+tags_input = st.text_input("2. Phong cách nhạc:", value="V-Pop, Male Voice, Acoustic Guitar")
 
-# 3. Tiêu đề bài hát
-title_input = st.text_input("3. Tiêu đề bài hát", value="Bài hát của tôi")
-
-# Nút bấm Tạo Nhạc
-if st.button("🚀 Tạo bài hát MP3", type="primary"):
-    if not lyrics_input.strip():
-        st.warning("Vui lòng nhập lời bài hát!")
+if st.button("🚀 Bước 1: Tạo Prompt & Lời bài hát", type="primary"):
+    if not api_key:
+        st.error("Vui lòng nhập Gemini API Key!")
+    elif not lyrics_input.strip():
+        st.warning("Vui lòng nhập nội dung ý tưởng!")
     else:
-        status_box = st.empty()
-        status_box.info("⏳ Đang gửi yêu cầu phối khí và thu âm bài hát...")
-
         try:
-            # Gửi yêu cầu tới Server tạo nhạc Suno API
-            api_url = "https://suno-api-platform.vercel.app/api/generate"
-            payload = {
-                "prompt": lyrics_input,
-                "tags": tags_input,
-                "title": title_input,
-                "make_instrumental": False,
-                "wait_audio": True
-            }
-
-            response = requests.post(api_url, json=payload, timeout=120)
-            data = response.json()
-
-            if response.status_code == 200 and len(data) > 0:
-                audio_url = data[0].get("audio_url")
-                
-                status_box.success("🎉 Tạo bài hát thành công!")
-                st.markdown("---")
-
-                # 1. Trình phát nhạc MP3 trực tiếp trên Web
-                st.audio(audio_url, format="audio/mp3")
-
-                # 2. Nút Tải file MP3 về máy
-                audio_data = requests.get(audio_url).content
-                st.download_button(
-                    label="⬇️ Tải file MP3 bài hát về máy",
-                    data=audio_data,
-                    file_name=f"{title_input}.mp3",
-                    mime="audio/mp3"
-                )
-            else:
-                status_box.error("Server tạo nhạc đang bận, vui lòng bấm thử lại sau vài giây!")
-
+            client = genai.Client(api_key=api_key)
+            prompt = f"""
+            Hãy tạo 2 phần cho Suno AI dựa trên: "{lyrics_input}" và phong cách "{tags_input}":
+            1. STYLE PROMPT (Tiếng Anh, dưới 120 ký tự):
+            2. LYRICS (Có các thẻ [Verse], [Chorus], [Outro]):
+            """
+            res = client.models.generate_content(model="gemini-3.6-flash", contents=prompt)
+            st.success("Tạo Prompt thành công! Hãy copy nội dung bên dưới dán vào Suno.com để tạo bài hát:")
+            st.markdown(res.text)
         except Exception as e:
-            # Phương án dự phòng nếu API endpoint gặp sự cố mạng
-            status_box.error("Đang kết nối lại tới Server Music Engine...")
-            st.info("Hệ thống đang tải lại phiên làm việc. Hãy bấm nút '🚀 Tạo bài hát MP3' một lần nữa.")
+            st.error(f"Lỗi: {e}")
+
+st.markdown("---")
+st.subsection = st.markdown("### 🎧 Bước 2: Dán Link nhạc từ Suno để nghe/tải MP3 trực tiếp")
+
+# 3. Ô dán link nhạc sau khi tạo bên Suno
+suno_link = st.text_input(
+    "Dán link bài hát Suno vào đây (Ví dụ: https://suno.com/song/xxx):",
+    placeholder="https://suno.com/song/..."
+)
+
+if suno_link:
+    # Tự động lấy file MP3 trực tiếp từ Suno
+    if "suno.com/song/" in suno_link:
+        song_id = suno_link.split("suno.com/song/")[-1].split("?")[0].strip()
+        mp3_url = f"https://cdn1.suno.ai/{song_id}.mp3"
+        
+        st.success("🎵 Đã kết nối bài hát thành công!")
+        # Trình phát nhạc MP3
+        st.audio(mp3_url, format="audio/mp3")
+        
+        # Nút tải file MP3
+        try:
+            audio_data = requests.get(mp3_url).content
+            st.download_button(
+                label="⬇️ Tải file MP3 về máy",
+                data=audio_data,
+                file_name="bai_hat_suno.mp3",
+                mime="audio/mp3"
+            )
+        except:
+            st.info(f"Hoặc tải trực tiếp tại: {mp3_url}")
+    else:
+        st.warning("Link không đúng định dạng của Suno!")
