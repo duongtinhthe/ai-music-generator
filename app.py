@@ -69,9 +69,9 @@ Hãy trả về kết quả theo cấu trúc rõ ràng bao gồm:
 3. **Chi tiết cách thể hiện giọng hát (Vocal guide)** rõ ràng từng câu lời.
 """
 
-            # Gọi model gemini-2.5-flash (Free tier ổn định, không dính lỗi Quota)
+            # Gọi model gemini-3.6-flash mới nhất
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.6-flash",
                 contents=prompt
             )
             
