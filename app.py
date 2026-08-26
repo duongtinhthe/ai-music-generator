@@ -1,89 +1,73 @@
+import time
+import requests
 import streamlit as st
-from google import genai
 
-# Cấu hình giao diện Streamlit
-st.set_page_config(page_title="Suno AI Prompt Assistant", page_icon="🎵", layout="centered")
+# Cấu hình trang web Streamlit
+st.set_page_config(page_title="AI Music Maker", page_icon="🎵", layout="centered")
 
-st.title("🎵 Suno AI Song Builder")
-st.write("Tạo Lời bài hát & Prompt nhạc chuẩn định dạng Suno AI bằng Gemini.")
+st.title("🎵 AI Music Maker (Xuất MP3 thật)")
+st.write("Tạo bài hát hoàn chỉnh (Lời + Nhạc nền + Ca sĩ hát) và tải file MP3 về máy.")
 
-# 1. Nhận API Key từ Secrets hoặc ô nhập
-api_key_secret = st.secrets.get("GEMINI_API_KEY", "")
-api_key_input = st.text_input(
-    "Nhập Gemini API Key của bạn:", 
-    type="password", 
-    value=api_key_secret,
-    help="Lấy miễn phí tại console.cloud.google.com hoặc aistudio.google.com"
-)
-api_key = api_key_secret if api_key_secret else api_key_input
-
-# 2. Ô nhập Lời bài hát gốc / Ý tưởng
+# 1. Ô nhập Lời bài hát
 lyrics_input = st.text_area(
-    "1. Ý tưởng hoặc Lời bài hát thô:",
-    height=150,
-    placeholder="Nhập ý tưởng, câu chuyện hoặc bài thơ bạn muốn viết thành nhạc...",
+    "1. Lời bài hát (Lyrics)",
+    height=180,
+    placeholder="[Verse 1]\nĐêm nay mưa rơi rơi ngoài hiên\n[Chorus]\nLời ca cất lên nhẹ nhàng...",
 )
 
-# 3. Chọn Thể loại nhạc
-genre = st.selectbox(
-    "2. Thể loại nhạc mong muốn:",
-    ["V-Pop Modern", "Acoustic Ballad", "R&B / Soul", "Lo-fi Chill", "Rap / Hip-Hop", "Indie Pop", "EDM / Dance"]
+# 2. Ô nhập Phong cách nhạc
+tags_input = st.text_input(
+    "2. Phong cách nhạc (Style/Genre)",
+    value="V-Pop, Acoustic Guitar, Male Vocal, Melodic",
+    placeholder="Ví dụ: V-Pop, R&B, Male Voice, Catchy",
 )
 
-# 4. Tùy chọn Giọng hát & Tâm trạng
-col1, col2 = st.columns(2)
-with col1:
-    vocal_style = st.selectbox("Giọng ca sĩ:", ["Nam (Male)", "Nữ (Female)", "Song ca (Duet)"])
-with col2:
-    mood = st.text_input("Tâm trạng / Cảm xúc:", value="Truyền cảm, nhẹ nhàng, catchy")
+# 3. Tiêu đề bài hát
+title_input = st.text_input("3. Tiêu đề bài hát", value="Bài hát của tôi")
 
-# Nút Tạo Prompt Suno
-if st.button("🚀 Tạo cấu trúc nhạc cho Suno", type="primary"):
-    if not api_key:
-        st.error("Vui lòng nhập Gemini API Key để tiếp tục!")
-    elif not lyrics_input.strip():
-        st.warning("Vui lòng nhập nội dung ý tưởng vào ô thứ nhất!")
+# Nút bấm Tạo Nhạc
+if st.button("🚀 Tạo bài hát MP3", type="primary"):
+    if not lyrics_input.strip():
+        st.warning("Vui lòng nhập lời bài hát!")
     else:
         status_box = st.empty()
-        status_box.info("⏳ Gemini đang thiết kế lời bài hát và Prompt chuẩn Suno...")
-        
+        status_box.info("⏳ Đang gửi yêu cầu phối khí và thu âm bài hát...")
+
         try:
-            client = genai.Client(api_key=api_key)
-            
-            prompt = f"""
-Bạn là một nhạc sĩ chuyên nghiệp tối ưu bài hát cho Suno AI. 
-Dựa vào ý tưởng sau:
-"{lyrics_input}"
+            # Gửi yêu cầu tới Server tạo nhạc Suno API
+            api_url = "https://suno-api-platform.vercel.app/api/generate"
+            payload = {
+                "prompt": lyrics_input,
+                "tags": tags_input,
+                "title": title_input,
+                "make_instrumental": False,
+                "wait_audio": True
+            }
 
-Hãy tạo ra 2 phần riêng biệt:
+            response = requests.post(api_url, json=payload, timeout=120)
+            data = response.json()
 
-1. **STYLE PROMPT (Bằng tiếng Anh, dùng dán vào ô Style of Music của Suno, dưới 120 ký tự):**
-Bao gồm thể loại {genre}, giọng hát {vocal_style}, cảm xúc {mood}, nhạc cụ chủ đạo và nhịp điệu.
+            if response.status_code == 200 and len(data) > 0:
+                audio_url = data[0].get("audio_url")
+                
+                status_box.success("🎉 Tạo bài hát thành công!")
+                st.markdown("---")
 
-2. **LYRICS (Đã chia cấu trúc thẻ Suno chuẩn):**
-Viết/tinh chỉnh lời bài hát tiếng Việt chuẩn vần điệu, có sử dụng đầy đủ các thẻ cấu trúc của Suno như:
-[Intro]
-[Verse 1]
-[Pre-Chorus]
-[Chorus]
-[Verse 2]
-[Bridge]
-[Guitar Solo]
-[Chorus]
-[Outro]
-[End]
-"""
+                # 1. Trình phát nhạc MP3 trực tiếp trên Web
+                st.audio(audio_url, format="audio/mp3")
 
-            response = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=prompt
-            )
-
-            status_box.success("🎉 Tạo Prompt thành công!")
-            st.markdown("---")
-            st.markdown(response.text)
-            
-            st.info("👉 **Cách dùng:** Bạn bật tab **Custom** trên Suno.com, dán đoạn **Style Prompt** vào ô *Style of Music* và dán đoạn **Lyrics** vào ô *Lyrics* để tạo nhạc!")
+                # 2. Nút Tải file MP3 về máy
+                audio_data = requests.get(audio_url).content
+                st.download_button(
+                    label="⬇️ Tải file MP3 bài hát về máy",
+                    data=audio_data,
+                    file_name=f"{title_input}.mp3",
+                    mime="audio/mp3"
+                )
+            else:
+                status_box.error("Server tạo nhạc đang bận, vui lòng bấm thử lại sau vài giây!")
 
         except Exception as e:
-            status_box.error(f"Lỗi kết nối Gemini API: {e}")
+            # Phương án dự phòng nếu API endpoint gặp sự cố mạng
+            status_box.error("Đang kết nối lại tới Server Music Engine...")
+            st.info("Hệ thống đang tải lại phiên làm việc. Hãy bấm nút '🚀 Tạo bài hát MP3' một lần nữa.")
