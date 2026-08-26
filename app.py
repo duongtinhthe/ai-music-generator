@@ -44,7 +44,7 @@ if st.button("🚀 Tạo bài hát MP3", type="primary"):
         status_box.info("⏳ Gemini đang tối ưu lời bài hát và xuất file âm thanh MP3...")
         
         try:
-            # Bước 1: Dùng Gemini để biến đổi Lyric thành bài hát mượt mà
+            # Bước 1: Dùng Gemini 3.6 Flash để tối ưu Lời bài hát
             client = genai.Client(api_key=api_key)
             prompt = f"""
             Bạn là một nhạc sĩ. Hãy tinh chỉnh lại lời bài hát sau cho mượt mà, đúng vần điệu theo phong cách {tags_input}:
@@ -52,7 +52,7 @@ if st.button("🚀 Tạo bài hát MP3", type="primary"):
             """
             
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.6-flash",
                 contents=prompt
             )
             song_text = response.text if response.text else lyrics_input
